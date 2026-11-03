@@ -254,7 +254,7 @@ type conversation struct {
 	replies uint64
 
 	// shown is what a screen is told: the phase and the words so far. Reset when a turn opens, so a
-	// new turn never shows the last one's answer.
+	// new turn never shows the last one's answer, except when listening for a follow-up.
 	shown State
 
 	// watch is a run open at Home Assistant's wake word stage, nil when there is none (hawake.go).
@@ -495,7 +495,7 @@ func (c *conversation) handle(e event) {
 func (c *conversation) dropQuestion() {
 	if c.phase == phaseIdle && c.shown.Phase == phaseReplying.String() {
 		c.shown.Phase = phaseIdle.String()
-		Changed.Emit(c.shown)
+		c.emitShown()
 	}
 }
 
@@ -537,7 +537,7 @@ func (c *conversation) turnEvent(e event) {
 		// while it is said; the turn that answers it opens after it. Not over a turn of its own.
 		if c.phase == phaseIdle {
 			c.shown = State{Phase: phaseReplying.String(), Reply: e.text}
-			Changed.Emit(c.shown)
+			c.emitShown()
 		}
 
 	case evAnnounced:
@@ -567,7 +567,7 @@ func (c *conversation) turnEvent(e event) {
 			slog.Info("heard", "slot", c.slot+1, "text", activity.Said(e.text))
 			c.log.Heard(e.text)
 			c.shown.Heard = e.text
-			Changed.Emit(c.shown)
+			c.emitShown()
 		}
 		// Home Assistant has no alarm of this device's to stop or snooze, so "stop the alarm" and
 		// "snooze for ten minutes" are acted on here, whatever it goes on to answer.
@@ -627,7 +627,7 @@ func (c *conversation) turnEvent(e event) {
 		c.turn.Replying(e.text)
 		c.shown.Reply = e.text
 		replyArrived(time.Now(), e.spoken)
-		Changed.Emit(c.shown)
+		c.emitShown()
 		if c.phase == phaseListening {
 			c.think()
 		}
@@ -967,7 +967,7 @@ func (c *conversation) start(n nextTurn) bool {
 		c.runOpen = true
 	}
 
-	c.shown = State{}
+	c.listenShown(n)
 	c.enter(phaseListening)
 	c.turn.Listening()
 	c.reply = reply{}
@@ -976,7 +976,6 @@ func (c *conversation) start(n nextTurn) bool {
 		c.claim.Play(effect, c.ring.Base())
 	}
 
-	c.arm(c.listenFor(n))
 	c.startAudio(slot, n.followUp, n.continued, n.waited)
 	// The phrase is logged for a follow-up too, because it is what chose the pipeline — not because
 	// anyone said it.
@@ -1208,11 +1207,46 @@ func (c *conversation) showPhase(override string) {
 	}
 }
 
+// listenShown prepares the first listening snapshot and its actual timeout together.
+func (c *conversation) listenShown(n nextTurn) {
+	reply := c.shown.Reply
+	c.shown = State{}
+	d := c.listenFor(n)
+	if n.followUp {
+		now := c.now()
+		c.shown.Reply = reply
+		c.shown.FollowUp = true
+		c.shown.FollowUpStarted = now
+		c.shown.FollowUpUntil = now.Add(d)
+	}
+	c.arm(d)
+}
+
+func (c *conversation) emitShown() {
+	s := c.shown // Activity is a fixed array: listeners receive an independent value copy.
+	for i, a := range s.Activity {
+		switch a.Status {
+		case "running", "ok", "missing", "error":
+		default:
+			s.Activity[i] = ToolActivity{}
+		}
+	}
+	Changed.Emit(s)
+}
+
 func (c *conversation) enter(p phase) {
 	c.phase = p
 	c.visible.Store(int32(p))
 	c.shown.Phase = p.String()
-	Changed.Emit(c.shown)
+	if p != phaseListening {
+		c.shown.FollowUp = false
+		c.shown.FollowUpStarted = time.Time{}
+		c.shown.FollowUpUntil = time.Time{}
+	}
+	if p == phaseIdle {
+		c.shown.Activity = [2]ToolActivity{}
+	}
+	c.emitShown()
 }
 
 // startPending opens the turn that was held back, if there is one.
@@ -1266,6 +1300,11 @@ func (c *conversation) hold(on bool) {
 func (c *conversation) arm(d time.Duration) {
 	c.disarm()
 	c.deadline = time.NewTimer(d)
+	// Speech extends a follow-up to MaxListen. Publish the new real deadline as well.
+	if c.phase == phaseListening && c.shown.FollowUp {
+		c.shown.FollowUpUntil = c.now().Add(d)
+		c.emitShown()
+	}
 }
 
 func (c *conversation) disarm() {
