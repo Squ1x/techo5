@@ -1486,6 +1486,16 @@ func (d *Display) gesture(g touch.Gesture) {
 		if g.Y < topEdge {
 			return
 		}
+		if d.r != nil {
+			switch d.r.lunaTurnTap(image.Pt(g.X, g.Y)) {
+			case "listen":
+				voice.Get().Start(0) // a start over a reply is the conversation's barge-in path
+				return
+			case "stop":
+				voice.Get().Cancel()
+				return
+			}
+		}
 		if weatherUp {
 			// The weather page: its button turns between the forecast and the rain map, and keeps the
 			// page up a while longer; a tap anywhere else puts it away.
@@ -2619,7 +2629,8 @@ func (d *Display) frame() (next time.Duration) {
 		return 80 * time.Millisecond
 	}
 
-	s := scene{now: now, phase: view.Phase, heard: view.Heard, reply: view.Reply, since: at, ring: ring, call: call}
+	s := scene{now: now, phase: view.Phase, heard: view.Heard, reply: view.Reply, since: at, ring: ring, call: call,
+		followUp: view.FollowUp, followUpStarted: view.FollowUpStarted, followUpUntil: view.FollowUpUntil, activity: view.Activity}
 	s.atDoor = call.Phase != phone.Idle && doorbell.Get().AtDoor(now)
 	s.snooze = config.Get().Alarms.Snooze()
 	s.alarms = alarm.Get().View(now)
@@ -2966,6 +2977,9 @@ func (d *Display) frame() (next time.Duration) {
 	}
 	if (s.slideshow != nil || s.slideshowScreensaver != nil) && home.Get().SlideshowTransitioning() {
 		return home.SlideshowFrame
+	}
+	if turnShown(s) && s.eq.style == "luna" {
+		return lunaTurnFrame(s)
 	}
 	if turnShown(s) && !(s.phase == "lingering" && s.eq.quiet && faceSettled(s.eq)) {
 		if s.eq.wave || s.eq.style == "orb" || s.eq.style == "face" {

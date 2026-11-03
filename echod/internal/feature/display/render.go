@@ -29,6 +29,7 @@ import (
 	"github.com/HuskerMinion/techo5/echod/internal/feature/tessera"
 	"github.com/HuskerMinion/techo5/echod/internal/feature/timer"
 	"github.com/HuskerMinion/techo5/echod/internal/feature/video"
+	"github.com/HuskerMinion/techo5/echod/internal/feature/voice"
 	"github.com/HuskerMinion/techo5/echod/internal/lib/hass"
 	"github.com/HuskerMinion/techo5/echod/internal/lib/locale"
 	"github.com/HuskerMinion/techo5/echod/internal/lib/rainbow"
@@ -56,6 +57,10 @@ type scene struct {
 	playing bool
 	paused  bool
 	muted   bool
+
+	followUp                       bool
+	followUpStarted, followUpUntil time.Time
+	activity                       [2]voice.ToolActivity
 
 	// glance is the glance strip's chips (feature/home/glance.go), drawn at the foot of the clock page.
 	glance []home.Chip
@@ -292,6 +297,8 @@ type scene struct {
 // renderer draws scenes onto one canvas. Faces are made once: parsing a font is cheap, but
 // building a face at each size is not something to do per frame.
 type renderer struct {
+	lunaTurnCache    lunaTurnPaint
+	lunaTurnDrawn    string // last drawn turn phase, under zmu
 	luna             lunaIdlePaint
 	lunaStopAt       image.Rectangle // last drawn Luna timer target, under zmu
 	lunaRingingDrawn bool
@@ -525,6 +532,9 @@ func (r *renderer) useFont() {
 // simpler than tracking what changed.
 func (r *renderer) draw(s scene) {
 	r.useFont()
+	if !turnShown(s) || s.eq.style != "luna" {
+		r.lunaTurnCache.phase = ""
+	}
 	if partial, finish := r.lunaIdleStart(s); partial {
 		return
 	} else {
@@ -532,6 +542,7 @@ func (r *renderer) draw(s scene) {
 	}
 	r.zmu.Lock()
 	r.lunaStopAt, r.lunaRingingDrawn = image.Rectangle{}, false
+	r.lunaTurnDrawn = ""
 	r.zmu.Unlock()
 	r.marked, r.footAt, r.lcarsDrawn = false, 0, false
 	// The button offered by the frame before is not this frame's, whatever this one does: every return
@@ -733,6 +744,8 @@ func (r *renderer) draw(s scene) {
 
 	if s.eq != nil {
 		switch {
+		case s.eq.style == "luna":
+			r.lunaTurn(s)
 		case s.eq.wave:
 			r.wave(s)
 		case s.eq.style == "vu" || s.eq.style == "orb" || s.eq.style == "hal":

@@ -36,13 +36,14 @@ var turnStyles = offered([]turnStyle{
 	{"Cue light", "cue"},
 	{"Cue and captions", "captions"},
 	{"Rainbow", "rainbow"},
+	{"Luna", "luna"},
 })
 
 // offered is styles without those this screen does not offer.
 func offered(styles []turnStyle) []turnStyle {
 	out := styles[:0]
 	for _, t := range styles {
-		if t.value != "rainbow" || hasRainbow {
+		if (t.value != "rainbow" || hasRainbow) && (t.value != "luna" || hasRainbow) {
 			out = append(out, t)
 		}
 	}
