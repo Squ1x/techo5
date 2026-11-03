@@ -93,7 +93,7 @@ func lunaPlainIdle(s scene) bool {
 		!s.showRadar && !s.showAlert && !s.nowPlaying && !s.showVolume && !s.showNotification && !s.showAnnouncement &&
 		!s.showReminder && !s.showWifi && !s.bt.Pairing && !s.pin.open && !s.setupAsking && s.camtest == nil &&
 		s.popup == nil && !s.updateActive && s.slideshow == nil && s.slideshowScreensaver == nil && !s.strip && s.cue == "" &&
-		!s.streaming && !s.listening
+		!s.streaming && !s.listening && s.sunrise == 0 && !s.announceRecording
 }
 
 // lunaIdleStart reuses only the static frame from the same second and facts.

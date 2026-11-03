@@ -146,6 +146,7 @@ func TestLunaSuppressionAndTimerTouch(t *testing.T) {
 		func(s *scene) { s.ring.timer = "Tea" }, func(s *scene) { s.showDrawer = true }, func(s *scene) { s.showCamera = true },
 		func(s *scene) { s.showVideo = true }, func(s *scene) { s.showCalendar = true }, func(s *scene) { s.showWeather = true },
 		func(s *scene) { s.showNotification = true }, func(s *scene) { s.updateActive = true },
+		func(s *scene) { s.sunrise = 0.3 }, func(s *scene) { s.announceRecording = true },
 	} {
 		s := base
 		change(&s)
