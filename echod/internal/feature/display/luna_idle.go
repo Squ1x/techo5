@@ -63,6 +63,13 @@ func (a *lunaIdleAnimator) step(now time.Time, allowed bool) {
 		a.blink = now
 	}
 }
+
+// summon starts a walk on the next step unless one is under way (a tap on the sign).
+func (a *lunaIdleAnimator) summon(now time.Time) {
+	if a.walk.IsZero() {
+		a.nextWalk = now
+	}
+}
 func (a *lunaIdleAnimator) busy() bool { return !a.walk.IsZero() || !a.blink.IsZero() }
 func (a *lunaIdleAnimator) sprite(now time.Time) (x, frame int, ok bool) {
 	if a.walk.IsZero() {
@@ -82,6 +89,21 @@ type lunaIdlePaint struct {
 	base       *image.RGBA
 	key        string
 	lastSprite image.Rectangle
+	// signLive is whether the last frame was the plain idle clock, and walkAsked a tap on the sign
+	// for the next one; both under zmu, as the tap comes from the touch goroutine.
+	signLive, walkAsked bool
+}
+
+// lunaSignTap asks for a walk when the tap is on the SHIVA sign (skyline asset, box 436–462 ×
+// 318–424) of a plain idle clock; the area is widened for a finger. Reports whether it took the tap.
+func (r *renderer) lunaSignTap(at image.Point) bool {
+	r.zmu.Lock()
+	defer r.zmu.Unlock()
+	if !r.luna.signLive || !at.In(image.Rect(r.s(420), r.s(306), r.s(480), r.s(436))) {
+		return false
+	}
+	r.luna.walkAsked = true
+	return true
 }
 
 // Never let an overlay hide a still-running dog. A countdown may coexist
@@ -100,6 +122,13 @@ func lunaPlainIdle(s scene) bool {
 // At 10 FPS the only painted regions are old/new sprite bounds and mini-eyes.
 func (r *renderer) lunaIdleStart(s scene) (partial bool, finish func()) {
 	allowed := lunaPlainIdle(s)
+	r.zmu.Lock()
+	asked := r.luna.walkAsked && allowed
+	r.luna.signLive, r.luna.walkAsked = allowed, false
+	r.zmu.Unlock()
+	if asked {
+		r.luna.animator.summon(s.now)
+	}
 	r.luna.animator.step(s.now, allowed)
 	if !allowed {
 		r.luna.key = ""

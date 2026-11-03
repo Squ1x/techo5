@@ -182,3 +182,33 @@ func TestLunaSuppressionAndTimerTouch(t *testing.T) {
 		t.Fatal("legacy timer bar should be suppressed")
 	}
 }
+
+func TestLunaSignTapSummonsShiva(t *testing.T) {
+	config.Use(filepath.Join(t.TempDir(), "state.json"))
+	previewFont(t)
+	if err := config.Set().Screen().ClockStyle(styleLuna); err != nil {
+		t.Fatal(err)
+	}
+	r := newRenderer(image.NewRGBA(image.Rect(0, 0, 960, 480)))
+	s := scene{now: time.Date(2026, 11, 3, 12, 0, 0, 0, time.Local), phase: "idle"}
+	if r.lunaSignTap(image.Pt(449, 370)) {
+		t.Fatal("sign took a tap before any idle frame")
+	}
+	r.draw(s)
+	if r.lunaSignTap(image.Pt(200, 370)) {
+		t.Fatal("tap beside the sign taken")
+	}
+	if !r.lunaSignTap(image.Pt(449, 370)) {
+		t.Fatal("tap on the sign not taken")
+	}
+	s.now = s.now.Add(lunaFrame)
+	r.draw(s)
+	if _, _, ok := r.luna.animator.sprite(s.now.Add(lunaFrame)); !ok {
+		t.Fatal("Shiva not walking after the tap")
+	}
+	s.phase = "listening"
+	r.draw(s)
+	if r.lunaSignTap(image.Pt(449, 370)) {
+		t.Fatal("sign took a tap during a turn")
+	}
+}

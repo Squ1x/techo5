@@ -1591,6 +1591,11 @@ func (d *Display) gesture(g touch.Gesture) {
 			transport(media.TransportToggle)
 			return
 		}
+		// Luna's SHIVA sign sends the dog on a walk (luna_idle.go).
+		if idle && d.r != nil && d.r.lunaSignTap(image.Pt(g.X, g.Y)) {
+			d.wake()
+			return
+		}
 		// The clock itself: a voice turn, unless the Tap on the clock setting says the dashboard, or
 		// nothing. A turn under way still takes the tap either way, as the way to stop or answer it,
 		// and with no dashboard set up a tap meant for one starts a turn rather than doing nothing.
