@@ -39,7 +39,7 @@ func timersAtFoot(s scene) bool {
 		return false
 	}
 	switch timerStyle() {
-	case timerCorner, timerBig:
+	case timerCorner, timerBig, timerLuna:
 		return false
 	}
 	return true

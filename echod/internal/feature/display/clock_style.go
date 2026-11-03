@@ -24,6 +24,7 @@ import (
 // look. A swipe left or right across the clock turns to the next style or the one before.
 
 const (
+	styleLuna      = "luna"
 	styleClassic   = ""
 	styleBig       = "big"
 	styleFlip      = "flip"
@@ -60,6 +61,7 @@ var clockStyles = []struct {
 	{"Nixie", styleNixie},
 	{"Stack", styleStack},
 	{"Overlap", styleOverlap},
+	{"Luna", styleLuna},
 }
 
 func clockStyleIndex() int {
@@ -183,6 +185,9 @@ func styleFactsFor(style string, now time.Time) (f styleFacts) {
 	switch style {
 	case styleSun:
 		f.rise, f.set, f.sunOK = home.Get().SunTimes(now)
+	case styleLuna:
+		f.days = home.Get().Forecast()
+		f.next = upcomingEvents(now, 4)
 	case styleDashboard:
 		f.days = home.Get().Forecast()
 		f.next = upcomingEvents(now, 8) // the style draws as many as fit above the coming days: 4 on a Show 5, 7 on a Show 8

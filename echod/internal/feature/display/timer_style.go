@@ -17,6 +17,7 @@ import (
 // whatever the style.
 
 const (
+	timerLuna   = "luna"
 	timerLine   = ""
 	timerRing   = "ring"
 	timerCorner = "corner"
@@ -33,6 +34,7 @@ var timerStyles = []struct {
 	{"Corner", timerCorner},
 	{"Banner", timerBanner},
 	{"Big", timerBig},
+	{"Luna-Ring", timerLuna},
 }
 
 func timerStyleOptions() []string {

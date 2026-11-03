@@ -56,6 +56,7 @@ type skinLook struct {
 
 // skinLooks are the skins' looks, by the value the config keeps.
 var skinLooks = map[string]skinLook{
+	skinLuna:      {theme: &lunaTheme},
 	skinLCARS:     {theme: &lcarsTheme},
 	skinEInk:      {theme: &eInkTheme, mono: &eInkSpec},
 	skinSynthwave: {theme: &synthwaveTheme},
@@ -92,6 +93,8 @@ func skinFilterFor(w, h int) func(row []byte, y int) {
 
 // lcarsTheme is the console's palette on black: orange for what the theme marks, peach for the words,
 // lavender for what is said quietly and blue for the rules.
+var lunaTheme = preset("Luna", 0x070B14, 0x22E4FF, 0xE6F7FF, 0x8BA6BF, 0x1C2C44)
+
 var lcarsTheme = preset("LCARS", 0x000000, 0xff9900, 0xffcc99, 0xcc99cc, 0x9999ff)
 
 // The one-color skins are drawn in grays, which their filter turns to their color: a near-black ground,

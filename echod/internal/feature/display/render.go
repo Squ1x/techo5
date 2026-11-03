@@ -292,9 +292,12 @@ type scene struct {
 // renderer draws scenes onto one canvas. Faces are made once: parsing a font is cheap, but
 // building a face at each size is not something to do per frame.
 type renderer struct {
-	nightBuf     *image.RGBA // the night layer kept between frames (nightLayerFor)
-	paint                    // the canvas, its size, and the settings screen's tap zones
-	climateParts             // the thermostat sheet's, where it was last drawn (climate_sheet.go)
+	luna             lunaIdlePaint
+	lunaStopAt       image.Rectangle // last drawn Luna timer target, under zmu
+	lunaRingingDrawn bool
+	nightBuf         *image.RGBA // the night layer kept between frames (nightLayerFor)
+	paint                        // the canvas, its size, and the settings screen's tap zones
+	climateParts                 // the thermostat sheet's, where it was last drawn (climate_sheet.go)
 	// glow is the Glow style's images, kept between frames (glow.go).
 	glow glowBuffers
 	// nixie is the Nixie style's tubes, kept between frames (nixie.go).
@@ -522,6 +525,14 @@ func (r *renderer) useFont() {
 // simpler than tracking what changed.
 func (r *renderer) draw(s scene) {
 	r.useFont()
+	if partial, finish := r.lunaIdleStart(s); partial {
+		return
+	} else {
+		defer finish() // after the static frame's header/overlays, before the sprite
+	}
+	r.zmu.Lock()
+	r.lunaStopAt, r.lunaRingingDrawn = image.Rectangle{}, false
+	r.zmu.Unlock()
 	r.marked, r.footAt, r.lcarsDrawn = false, 0, false
 	// The button offered by the frame before is not this frame's, whatever this one does: every return
 	// below, the early ones of a video and of Rainbow's kept page alike, publishes the frame as it was
@@ -881,6 +892,11 @@ func (r *renderer) bigClock(s scene) {
 		return
 	}
 	defer r.timerCorner(s, timerStyle() == timerCorner)
+	defer r.lunaTimerCorner(s, false)
+	if s.style.style() == styleLuna {
+		r.lunaClock(s)
+		return
+	}
 	// The Sun without sunrise and sunset yet is the classic face, drawn as the classic face is.
 	if style := s.style.style(); style != styleClassic && !(style == styleSun && !s.style.sunOK) {
 		r.styledClock(s, style)

@@ -23,6 +23,7 @@ import (
 // chooses.
 
 const (
+	skinLuna      = "luna"
 	skinNone      = ""
 	skinLCARS     = "lcars"
 	skinEInk      = "eink"
@@ -52,6 +53,16 @@ var skins = []struct {
 	{"Control room", skinControl, "inter"},
 	{"Big and plain", skinPlain, "inter"},
 	{"Earthrise", skinEarthrise, "inter"},
+	{"Luna", skinLuna, "saira"},
+}
+
+func init() {
+	// Like Rainbow, Luna's 960×480 layout is for Show/Panel, not round Spot.
+	if !hasRainbow {
+		skins = skins[:len(skins)-1]
+		clockStyles = clockStyles[:len(clockStyles)-1]
+		timerStyles = timerStyles[:len(timerStyles)-1]
+	}
 }
 
 // skinsGone are the one-color skins taken out in v1.6.9, hard to read on some screens, and the

@@ -1157,6 +1157,15 @@ func (d *Display) gesture(g touch.Gesture) {
 
 	// A timer or an alarm ringing: its page takes every tap.
 	if st := d.ringing(time.Now()); st.any() {
+		if d.r != nil && st.timer != "" && st.alarm == nil {
+			if shown, stop := lunaStopTap(d.r, g.X, g.Y); shown {
+				if g.Kind == touch.Tap && stop {
+					d.stopRing()
+				}
+				d.wake()
+				return
+			}
+		}
 		if g.Kind == touch.Tap {
 			d.ringTap(g.X, g.Y, st)
 		}
@@ -2484,6 +2493,7 @@ func (d *Display) frame() (next time.Duration) {
 		lit := d.on
 		d.mu.Unlock()
 		if !lit {
+			lunaDisplayOff(d.r, now)
 			return time.Minute
 		}
 		on = lit // the night may have just turned the panel back on: this frame is its first
@@ -2523,6 +2533,9 @@ func (d *Display) frame() (next time.Duration) {
 			return 250 * time.Millisecond
 		}
 		return time.Second
+	}
+	if !on {
+		lunaDisplayOff(d.r, now)
 	}
 	if !on && !video.Get().State().Active() {
 		d.vp.drop() // a video that ended while the panel was dark: its frame goes with it
@@ -2920,6 +2933,9 @@ func (d *Display) frame() (next time.Duration) {
 	d.answerShots()
 	if s.updateActive {
 		return 250 * time.Millisecond
+	}
+	if lunaAnimationActive(d.r) {
+		return 100 * time.Millisecond
 	}
 	if d.r.flipBusy(time.Now()) {
 		return flipFrame // a card is flipping: the night's flip clock, or the Flip clock style

@@ -14,6 +14,10 @@ import (
 // ringingPage is over everything while a timer or an alarm sounds: what it is, the time, and buttons
 // big enough to hit half awake.
 func (r *renderer) ringingPage(s scene) {
+	if lunaTimerRinging(s) {
+		r.lunaRinging(s)
+		return
+	}
 	st := s.ring
 	title := tr("alarm")
 	switch {
