@@ -69,8 +69,9 @@ type Engine struct {
 	// per slot because the models disagree on scale.
 	Threshold func(slot int) float64
 
-	// OnDetect runs on a detection, off the audio path.
-	OnDetect func(slot int)
+	// OnDetect runs off the audio path with the model ID captured at detection,
+	// before an asynchronous callback or a model reload can change the slot.
+	OnDetect func(slot int, modelID string)
 
 	// OnNearMiss runs when an utterance peaked over NearMiss and fell away without firing, with the peak
 	// it reached, off the audio path. A near miss is the only sign the device gets that somebody tried
@@ -583,7 +584,8 @@ func (e *Engine) judge(n int, s *slot, score float64, now time.Time, source *mic
 	s.crossing, s.peak, s.crossCutoff = score, score, cutoff
 
 	if e.OnDetect != nil {
-		safe.Go("wake detected", func() { e.OnDetect(n) })
+		modelID := s.model.ID
+		safe.Go("wake detected", func() { e.OnDetect(n, modelID) })
 	}
 }
 

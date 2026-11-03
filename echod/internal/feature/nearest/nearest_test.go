@@ -56,8 +56,8 @@ func newHouse(t *testing.T) *house {
 	n.fanout = func(_ []announce.Peer, mine *pending) { h.sent = append(h.sent, mine.claim); h.mine = mine }
 	n.now = func() time.Time { return h.now }
 	n.after = func(_ time.Duration, f func()) { h.later = append(h.later, f) }
-	n.woke = func(_ int, at time.Time) { h.opened = append(h.opened, at) }
-	n.wokeNow = func(int) { h.at0++ }
+	n.woke = func(_ int, at time.Time, _ ...string) { h.opened = append(h.opened, at) }
+	n.wokeNow = func(int, ...string) { h.at0++ }
 	h.n = n
 	return h
 }
@@ -299,7 +299,7 @@ func TestAPanicDecidingStillAnswers(t *testing.T) {
 	h := newHouse(t)
 	h.n.Woke(0)
 	answered := 0
-	h.n.woke = func(int, time.Time) {
+	h.n.woke = func(int, time.Time, ...string) {
 		answered++
 		if answered == 1 {
 			panic("boom")

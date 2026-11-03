@@ -208,7 +208,7 @@ func newDetect() *Detect {
 
 	// d is made below, once the hooks it chains onto are in place; a detection only arrives after Start.
 	var d *Detect
-	e.OnDetect = func(slot int) {
+	e.OnDetect = func(slot int, modelID string) {
 		c := config.Get()
 		st := phone.Get().State()
 		h := heard{
@@ -259,7 +259,7 @@ func newDetect() *Detect {
 			// The other devices that heard it may be asked first which of them heard it best
 			// (feature/nearest); with that off, or nobody to ask, the turn opens at once as it always
 			// has.
-			d.wakeHeard(slot)
+			d.wakeHeard(slot, modelID)
 		default:
 			slog.Debug("wake word ignored during a call or a talk through a camera", "slot", slot+1)
 		}

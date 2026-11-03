@@ -112,6 +112,7 @@ func servers(c Config) []ServerChange {
 		{What: "OBS", New: c.Deck.OBS.Addr},
 		{What: "go2rtc", New: withoutLogin(c.Home.Go2RTC.Base)},
 		{What: "Realtime voice (the provider and its relay)", New: realtimeServer(c.Realtime)},
+		{What: "Luna terminal", New: c.Luna.URL},
 	}
 }
 
@@ -284,6 +285,7 @@ func ClearSecrets(c *Config) {
 	c.Deck.OBS.Password = ""
 	c.Remote.Secret = ""
 	c.CamStream.Pass = ""
+	c.Luna.Token = ""
 	c.Realtime.Key = ""
 	c.Realtime.MCPToken = ""
 	for i := range c.Deck.Computers {
@@ -321,6 +323,7 @@ func KeepSecrets(c *Config, from Config) (reenter []string) {
 		c.Home.Reolink.Base == from.Home.Reolink.Base && c.Home.Reolink.User == from.Home.Reolink.User &&
 			c.Home.Reolink.Fingerprint == from.Home.Reolink.Fingerprint, "the doorbell recorder's password")
 	keep(&c.Deck.OBS.Password, from.Deck.OBS.Password, c.Deck.OBS.Addr == from.Deck.OBS.Addr, "OBS's password")
+	keep(&c.Luna.Token, from.Luna.Token, c.Luna.URL == from.Luna.URL, "Luna terminal's token")
 	keep(&c.Realtime.Key, from.Realtime.Key,
 		c.Realtime.Provider == from.Realtime.Provider && c.Realtime.Endpoint == from.Realtime.Endpoint, "realtime voice's key")
 	// The token is for this device's Home Assistant, which a settings file does not name: kept whole.
@@ -354,6 +357,8 @@ func ClearOwn(c *Config) { KeepOwn(c, Config{}) }
 
 // KeepOwn puts from's own things into c, in place of whatever c has.
 func KeepOwn(c *Config, from Config) {
+	// A settings import must not silently enable room streaming or change its destination.
+	c.Luna = from.Luna
 	lockPIN, babyKey := c.Security.LockPIN, c.Security.BabyKey // secrets, kept or cleared by their own list
 	c.Security = from.Security
 	c.Security.LockPIN, c.Security.BabyKey = lockPIN, babyKey

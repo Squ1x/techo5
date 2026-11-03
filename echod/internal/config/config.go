@@ -58,6 +58,7 @@ type Config struct {
 	Realtime       Realtime       `json:"realtime,omitempty"`
 	Tessera        Tessera        `json:"tessera,omitempty"`
 	WifiQuiet      WifiQuiet      `json:"wifi_quiet,omitempty"`
+	Luna           Luna           `json:"luna,omitempty"`
 }
 
 // Defaults is a device nobody has set anything on.

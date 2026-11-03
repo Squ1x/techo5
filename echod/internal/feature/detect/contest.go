@@ -119,7 +119,7 @@ func (c *contest) commandCrossed(margin float64) bool {
 }
 
 // wakeHeard is a wake word the engine heard in slot (routeTurn).
-func (d *Detect) wakeHeard(slot int) {
+func (d *Detect) wakeHeard(slot int, modelID string) {
 	at := time.Now()
 	hold := d.commandsListening() > 0
 	gate, ok := d.contest.wakeHeard(d.engine.Margin(slot), hold)
@@ -127,8 +127,8 @@ func (d *Detect) wakeHeard(slot int) {
 		return
 	}
 	if !hold {
-		nearest.Get().Woke(slot)
+		nearest.Get().Woke(slot, modelID)
 		return
 	}
-	nearest.Get().WokeGated(slot, at, gate)
+	nearest.Get().WokeGated(slot, at, gate, modelID)
 }

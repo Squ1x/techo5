@@ -64,7 +64,7 @@ func TestSlotsOfDifferentKindsBothRun(t *testing.T) {
 	e := New(2, nil)
 
 	fired := make(chan int, 2)
-	e.OnDetect = func(slot int) { fired <- slot }
+	e.OnDetect = func(slot int, _ string) { fired <- slot }
 
 	if err := e.Use(0, model("glados", wake.KindOpenWakeWord)); err != nil {
 		t.Fatalf("Use(0): %v", err)

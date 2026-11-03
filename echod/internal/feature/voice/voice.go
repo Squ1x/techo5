@@ -23,6 +23,7 @@ import (
 
 	"github.com/HuskerMinion/techo5/echod/internal/component"
 	"github.com/HuskerMinion/techo5/echod/internal/config"
+	"github.com/HuskerMinion/techo5/echod/internal/feature/luna"
 	"github.com/HuskerMinion/techo5/echod/internal/feature/media"
 	"github.com/HuskerMinion/techo5/echod/internal/feature/mute"
 	"github.com/HuskerMinion/techo5/echod/internal/feature/phone"
@@ -48,6 +49,7 @@ const Features = esphome.DefaultVoiceFeatures |
 	esphome.FeatureTimers
 
 type Voice struct {
+	luna   *luna.Client
 	vs     *esphome.VoiceSatellite
 	turn   *conversation
 	effect *esphome.Action
@@ -106,6 +108,7 @@ func build() *Voice {
 		},
 	}
 	v.turn = newConversation(v.vs)
+	v.luna = newLuna()
 	slog.Info("wake words", "ours", len(ours), "active", active)
 	warnRepeatedWord()
 
@@ -117,7 +120,13 @@ func build() *Voice {
 		v.turn.post(event{kind: evWatch})
 	}
 	// A stream to Home Assistant stops the moment the microphones are cut, not at the next look.
-	mute.Get().Changed.Listen(func(bool) { v.turn.post(event{kind: evWatch}) })
+	mute.Get().Changed.Listen(func(bool) {
+		if v.luna != nil {
+			v.luna.Stop()
+			return
+		}
+		v.turn.post(event{kind: evWatch})
+	})
 
 	wakeword.Requested.Listen(v.Start)
 	wakeword.CancelRequested.Listen(func(struct{}) { v.CancelRequest() })
@@ -142,9 +151,7 @@ func build() *Voice {
 		case buttons.LongHold:
 			// Held on past the second assistant, to something else (Bluetooth pairing on the Dot): the
 			// turn the hold started on the way is not what was wanted.
-			if v.turn.Busy() {
-				v.turn.Cancel()
-			}
+			v.Cancel()
 		}
 	})
 	return v
@@ -195,6 +202,9 @@ func (v *Voice) ShowEffect(name string) error {
 // not yet seen to close (the device's Wi-Fi dropped under it) would hold voice with nothing to take it
 // back when it finally goes.
 func (v *Voice) Handle(ctx context.Context, c *esphome.Conn, msg proto.Message) error {
+	if v.luna != nil {
+		return nil
+	}
 	if m, ok := msg.(*api.SubscribeVoiceAssistantRequest); ok && m.GetSubscribe() {
 		if old := v.turn.conn.Swap(c); old != nil && old != c {
 			v.vs.ConnClosed(old)
@@ -213,6 +223,9 @@ func (v *Voice) ConnClosed(c *esphome.Conn) {
 // Run owns the conversation until ctx is canceled. Nothing happens on a wake word until it is
 // running.
 func (v *Voice) Run(ctx context.Context) error {
+	if v.luna != nil {
+		return v.runLuna(ctx)
+	}
 	v.turn.Run(ctx)
 	return nil
 }
@@ -220,7 +233,12 @@ func (v *Voice) Run(ctx context.Context) error {
 // Ready reports whether Home Assistant has a voice pipeline listening. Wake detection runs before
 // that happens, but nothing can be done with a detection until it does, so this is what the device
 // shows on the ring while it comes up.
-func (v *Voice) Ready() bool { return v.vs.Subscribed() || config.Get().Brain.Direct() }
+func (v *Voice) Ready() bool {
+	if v.luna != nil {
+		return v.luna.Ready()
+	}
+	return v.vs.Subscribed() || config.Get().Brain.Direct()
+}
 
 // HomeAssistant reports whether Home Assistant itself has a voice pipeline listening, whatever the
 // brain. Ready is always true with a direct brain, so it says nothing about whether Home Assistant
@@ -242,6 +260,10 @@ func (v *Voice) Start(slot int) { v.open(slot, false, time.Time{}) }
 // during the request stops with it. A ringing alarm is not on the speaker claim and goes on. With no
 // request running it does nothing.
 func (v *Voice) CancelRequest() {
+	if v.luna != nil {
+		v.luna.Stop()
+		return
+	}
 	if !v.turn.Busy() {
 		return
 	}
@@ -251,11 +273,13 @@ func (v *Voice) CancelRequest() {
 
 // Woke is Start for the wake word itself, which is the one way a turn can be opened by mistake: by a
 // sound that was not the word (see Mistaken).
-func (v *Voice) Woke(slot int) { v.open(slot, true, time.Time{}) }
+func (v *Voice) Woke(slot int, modelID ...string) { v.open(slot, true, time.Time{}, modelID...) }
 
 // WokeAt is Woke for a wake word heard at at and acted on later, once the devices that heard it agreed
 // which answers (feature/nearest). The turn sends what was said in between, from the history.
-func (v *Voice) WokeAt(slot int, at time.Time) { v.open(slot, true, at) }
+func (v *Voice) WokeAt(slot int, at time.Time, modelID ...string) {
+	v.open(slot, true, at, modelID...)
+}
 
 // CanAnswer is whether a wake word in slot would open a turn here now: an assistant is there to take it
 // (Home Assistant, or the device's own direct pipeline), the microphones are not taken by something
@@ -266,6 +290,9 @@ func (v *Voice) WokeAt(slot int, at time.Time) { v.open(slot, true, at) }
 func (v *Voice) CanAnswer(slot int) bool {
 	if micTaken() {
 		return false
+	}
+	if v.luna != nil {
+		return v.luna.Ready()
 	}
 	if w := config.Get().Wake.Words; slot >= 0 && slot < len(w) && w[slot].Realtime {
 		return v.turn != nil && v.turn.realtime.Ready()
@@ -279,13 +306,29 @@ func (v *Voice) CanAnswer(slot int) bool {
 	return slot >= 0 && slot < len(v.ActiveWakeWords())
 }
 
-func (v *Voice) open(slot int, woke bool, at time.Time) {
+func (v *Voice) open(slot int, woke bool, at time.Time, modelID ...string) {
 	if micTaken() {
 		slog.Info("wake word ignored: the microphones are taken", "by", heldBy())
 		return
 	}
 	if ring.IsSounding() && ring.Silence() {
 		slog.Info("wake word over a ring, silencing it")
+	}
+	if v.luna != nil {
+		if lunaMicAllowed() {
+			if woke {
+				// Only the detector's captured identity is authoritative: configured
+				// and advertised slots may be compacted or changed while we waited.
+				id := ""
+				if len(modelID) > 0 {
+					id = modelID[0]
+				}
+				v.luna.Wake(config.Get().Luna.WakeAssistants[id])
+			} else {
+				v.luna.Toggle()
+			}
+		}
+		return
 	}
 	if woke {
 		if at.IsZero() {
@@ -300,11 +343,20 @@ func (v *Voice) open(slot int, woke bool, at time.Time) {
 
 // Busy reports whether a turn is running, for anything that has to leave the speaker alone while one
 // is.
-func (v *Voice) Busy() bool { return v.turn.Busy() }
+func (v *Voice) Busy() bool {
+	if v.luna != nil {
+		return v.luna.Busy()
+	}
+	return v.turn.Busy()
+}
 
 // Cancel stops a turn that is running, for a gesture that turned out to mean something else: the
 // second tap of a double, the way a long hold already undoes the turn its hold began.
 func (v *Voice) Cancel() {
+	if v.luna != nil {
+		v.luna.Stop()
+		return
+	}
 	if v.turn.Busy() {
 		v.turn.Cancel()
 	}
@@ -336,7 +388,7 @@ func (v *Voice) Action() {
 
 	// No wake word, so no slot to pair with: the first pipeline is the one Home Assistant falls back
 	// to for anything that reports no phrase.
-	v.turn.Start(0)
+	v.Start(0)
 }
 
 // What Stop and Interrupt ask of the music, and what lets go of the wake light a ring left on; here
@@ -396,6 +448,10 @@ func (v *Voice) Stop() bool {
 		return true
 	}
 
+	if v.luna != nil && v.luna.Busy() {
+		v.luna.Stop()
+		return true
+	}
 	if v.turn.Busy() {
 		v.turn.Cancel()
 		return true
@@ -422,6 +478,10 @@ func (v *Voice) Stop() bool {
 // cancel: a press is the way out of a turn, so holding while one is running interrupts it with the
 // other assistant instead, which is the same thing saying the other wake word would do.
 func (v *Voice) ActionHold() {
+	if v.luna != nil {
+		v.Start(0)
+		return
+	}
 	// Where holding on reaches something else (buttons.LongHold), a hold with no second assistant set
 	// up is on its way there, not a request to report as failed.
 	if buttons.LongHolds() {

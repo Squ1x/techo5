@@ -98,7 +98,13 @@ func Load(path string) (*Store, error) {
 		}
 		return st, err
 	}
+	// Protect credentials even when parsing fails; Unmarshal can populate fields
+	// before reporting an unrelated type error. Boot may still use this Store.
+	if err := os.Chmod(path, 0o600); err != nil {
+		return st, fmt.Errorf("config: securing settings: %w", err)
+	}
 	if err := json.Unmarshal(b, &st.c); err != nil {
+		st.c.Luna = Luna{}
 		return st, fmt.Errorf("config: %s: %w", path, err)
 	}
 	_ = json.Unmarshal(b, &st.was)

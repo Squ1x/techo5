@@ -102,8 +102,8 @@ type Nearest struct {
 
 	// The device, replaced in tests: which wakes open a turn, whether one could, how well this device
 	// heard the word, whether it hears at all, the others, how a claim reaches them, and the clock.
-	woke      func(slot int, at time.Time)
-	wokeNow   func(slot int)
+	woke      func(slot int, at time.Time, modelID ...string)
+	wokeNow   func(slot int, modelID ...string)
 	busy      func() bool
 	canAnswer func(slot int) bool
 	wakeWord  func(slot int) string
@@ -153,8 +153,8 @@ func build() *Nearest {
 			Min: config.MinNearestOffset, Max: config.MaxNearestOffset, Step: 1, Unit: "dB",
 			Mode: esphome.NumberBox,
 		},
-		woke:      func(slot int, at time.Time) { voice.Get().WokeAt(slot, at) },
-		wokeNow:   func(slot int) { voice.Get().Woke(slot) },
+		woke:      func(slot int, at time.Time, modelID ...string) { voice.Get().WokeAt(slot, at, modelID...) },
+		wokeNow:   func(slot int, modelID ...string) { voice.Get().Woke(slot, modelID...) },
 		busy:      func() bool { return voice.Get().Busy() },
 		canAnswer: func(slot int) bool { return voice.Get().CanAnswer(slot) },
 		wakeWord: func(slot int) string {
@@ -261,19 +261,31 @@ func hearing(peers []announce.Peer) []announce.Peer {
 // Woke is a wake word heard here, in place of voice's Woke. It opens the turn at once unless this device
 // takes part, could answer, and has somebody to ask who could hear it too; otherwise it claims the word, and opens the turn
 // after the window only if no device claimed it better or had already answered it.
-func (n *Nearest) Woke(slot int) {
-	n.contend(n.wakeWord(slot), n.now(),
+func (n *Nearest) Woke(slot int, modelID ...string) {
+	word := ""
+	if len(modelID) > 0 {
+		word = modelID[0]
+	} else {
+		word = n.wakeWord(slot)
+	}
+	n.contend(word, n.now(),
 		func() bool { return n.canAnswer(slot) },
-		func(at time.Time) { n.woke(slot, at) },
-		func() { n.wokeNow(slot) })
+		func(at time.Time) { n.woke(slot, at, modelID...) },
+		func() { n.wokeNow(slot, modelID...) })
 }
 
 // WokeGated is Woke for a wake word whose turn may still be called off (detect's contest with a command
 // word): the claim goes out at once, as Woke's does, and gate decides whether the turn opens once this
 // device has won it, sending what was said since at from the history.
-func (n *Nearest) WokeGated(slot int, at time.Time, gate func(open func())) {
-	open := func(at time.Time) { gate(func() { n.woke(slot, at) }) }
-	n.contend(n.wakeWord(slot), at,
+func (n *Nearest) WokeGated(slot int, at time.Time, gate func(open func()), modelID ...string) {
+	word := ""
+	if len(modelID) > 0 {
+		word = modelID[0]
+	} else {
+		word = n.wakeWord(slot)
+	}
+	open := func(at time.Time) { gate(func() { n.woke(slot, at, modelID...) }) }
+	n.contend(word, at,
 		func() bool { return n.canAnswer(slot) },
 		open,
 		func() { open(at) })

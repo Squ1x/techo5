@@ -85,6 +85,14 @@ func (d *Driver) ClaimSpeech(name string, play func(ctx context.Context, p *Play
 	return d.claim(name, claimSpec{over: config.Get().Media.OnTurn != config.OnTurnPause}, play)
 }
 
+// ClaimSpeechIf is ClaimSpeech for an asynchronously acquired generation. valid
+// must be short and must not call Driver methods: it is checked under d.mu at
+// the ownership transition, before displacing or draining the previous owner.
+// A rejected acquisition returns nil and never runs play.
+func (d *Driver) ClaimSpeechIf(valid func() bool, name string, play func(ctx context.Context, p *Player) error) *Claim {
+	return d.claim(name, claimSpec{over: config.Get().Media.OnTurn != config.OnTurnPause, valid: valid}, play)
+}
+
 // ClaimOver takes the speaker for something that is not words but still belongs over the music rather
 // than instead of it: the background is ducked for as long as the claim lasts and comes back up when it
 // ends. It is ClaimSpeech without the words' setting deciding, because the two are not the same
@@ -138,10 +146,11 @@ func duckDB(deep bool) int {
 // words ducks the background, and a sound over the music ducks it too, but it is not words — it never
 // displaces what is being said, and it needs more room than words do.
 type claimSpec struct {
-	call  bool // a call, its ring or a drop in (ClaimCall): played at the call volume
-	over  bool // sounds over the background rather than standing it down
-	waits bool // waits for whatever holds the speaker rather than displacing it
-	deep  bool // ducks deeper than words: a sound whose own level is low, heard over the room's music
+	valid func() bool // optional generation guard for an immediate ownership transition
+	call  bool        // a call, its ring or a drop in (ClaimCall): played at the call volume
+	over  bool        // sounds over the background rather than standing it down
+	waits bool        // waits for whatever holds the speaker rather than displacing it
+	deep  bool        // ducks deeper than words: a sound whose own level is low, heard over the room's music
 
 	overlay bool // a sound over the music that is not words (ClaimOver), which a claim that waits plays beside
 	beside  bool // waits for words, and plays beside an overlay without taking the speaker (ClaimTurn)
@@ -175,12 +184,29 @@ func (d *Driver) claim(name string, spec claimSpec, play func(ctx context.Contex
 		// The ordinary way: the claim holds the speaker from the moment it is made, and takes it from
 		// whatever had it. Before the errand queues anything, so the two never fight over the same audio.
 		d.mu.Lock()
+		if spec.valid != nil && !spec.valid() {
+			d.mu.Unlock()
+			cancel()
+			return nil
+		}
 		previous := d.now
 		d.now = c
 		d.mu.Unlock()
 
 		d.settle()
-		previous.preempt(d.p)
+		if !d.preempt(c, previous, spec.valid) {
+			d.CancelClaim(c)
+			cancel()
+			c.mu.Lock()
+			c.stopped = true
+			c.mu.Unlock()
+			close(c.done)
+			d.release(c)
+			if spec.valid == nil {
+				return c
+			} // ordinary callers still receive a stopped handle
+			return nil
+		}
 	}
 
 	go func() {
@@ -337,6 +363,22 @@ func (d *Driver) Silence() {
 	c.stop(d.p)
 	d.p.Drain()
 	d.settle()
+}
+
+// CancelClaim cancels and drains only if c still owns the output. Unlike Silence,
+// an old streaming producer cannot cut off the call/announcement that displaced it.
+// The producer must serialize this with its own Play calls and honor ctx cancellation.
+func (d *Driver) CancelClaim(c *Claim) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if c == nil || d.now != c {
+		return
+	}
+	c.mu.Lock()
+	c.stopped = true
+	c.mu.Unlock()
+	c.cancel()
+	d.p.Drain()
 }
 
 // Busy reports whether anything holds the speaker.
@@ -554,16 +596,44 @@ func (c *Claim) Finished() bool {
 	}
 }
 
-// preempt makes way for another sound. A claim that has already played out is left alone: its audio
-// has been heard, and draining then would cut off whatever is playing without a claim.
-func (c *Claim) preempt(p *Player) {
-	if c == nil || c.Finished() {
-		return
+// preempt cancels the displaced producer, but only drains while owner still
+// owns the queue. settle and waiting for the producer can both yield to a newer
+// claim; neither permits this acquisition to drain that newer claim's audio.
+func (d *Driver) preempt(owner, previous *Claim, valid func() bool) bool {
+	live := previous != nil && !previous.Finished()
+	if live {
+		previous.duckMu.Lock()
+		previous.preemptedBit = true
+		previous.duckMu.Unlock()
+		previous.mu.Lock()
+		previous.stopped = true
+		previous.mu.Unlock()
+		// Even after losing ownership, do not leave the older producer running.
+		previous.cancel()
 	}
-	c.duckMu.Lock()
-	c.preemptedBit = true
-	c.duckMu.Unlock()
-	c.stop(p)
+	d.mu.Lock()
+	owns := d.now == owner && (valid == nil || valid())
+	if owns && live {
+		d.p.Drain()
+	}
+	d.mu.Unlock()
+	if !owns || !live {
+		return owns
+	}
+
+	// Never hold d.mu while waiting: the producer releases its claim with it.
+	select {
+	case <-previous.done:
+	case <-time.After(time.Second):
+		slog.Warn("sound would not stop", "claim", previous.name)
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	owns = d.now == owner && (valid == nil || valid())
+	if owns {
+		d.p.Drain()
+	}
+	return owns
 }
 
 // stop cancels the errand and silences the queue it was filling. Waiting for it to unwind is

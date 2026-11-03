@@ -20,7 +20,7 @@ func TestSettlingHoldsDetectionsBack(t *testing.T) {
 		t.Fatalf("Use(0): %v", err)
 	}
 	woke := make(chan int, 4)
-	e.OnDetect = func(slot int) { woke <- slot }
+	e.OnDetect = func(slot int, _ string) { woke <- slot }
 
 	e.Settle(time.Second)
 	s := &e.slots[0]
@@ -60,7 +60,7 @@ func TestSettlingSparesTheStopWord(t *testing.T) {
 		}
 	}
 	woke := make(chan int, 4)
-	e.OnDetect = func(slot int) { woke <- slot }
+	e.OnDetect = func(slot int, _ string) { woke <- slot }
 
 	e.Settle(time.Second, 1)
 	at := time.Now()

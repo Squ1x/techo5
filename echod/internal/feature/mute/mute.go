@@ -169,6 +169,10 @@ func (m *Mute) Entities() []esphome.Entity {
 	return []esphome.Entity{m.sw, m.ring, m.brightness}
 }
 
+// Available reports whether the privacy backend initialized successfully.
+// Muted retains its existing fallback semantics for other voice paths.
+func (m *Mute) Available() bool { return m.line != nil }
+
 // Muted reports whether the line is cut, which is what a turn has to check before opening the
 // microphones.
 func (m *Mute) Muted() (bool, error) {

@@ -61,7 +61,7 @@ func TestACandidateIsAskedAboutOnceItFallsAway(t *testing.T) {
 	asked := make(chan float64, 2)
 	e.OnCandidate = func(_ int, peak float64) { asked <- peak }
 	woke := make(chan int, 2)
-	e.OnDetect = func(slot int) { woke <- slot }
+	e.OnDetect = func(slot int, _ string) { woke <- slot }
 
 	at := time.Now()
 	s := &e.slots[0]
@@ -146,7 +146,7 @@ func TestAClearRepeatAfterACandidateStillWakes(t *testing.T) {
 	asked := make(chan float64, 4)
 	e.OnCandidate = func(_ int, peak float64) { asked <- peak }
 	woke := make(chan int, 2)
-	e.OnDetect = func(slot int) { woke <- slot }
+	e.OnDetect = func(slot int, _ string) { woke <- slot }
 
 	at := time.Now()
 	s := &e.slots[0]

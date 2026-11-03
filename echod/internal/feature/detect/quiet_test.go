@@ -92,7 +92,7 @@ func TestNothingIsScoredWhileQuiet(t *testing.T) {
 
 	// Over its threshold, so a frame that reached the engine would fire the slot.
 	f.loaded["hey_jarvis"] = 0.99
-	e.OnDetect = func(int) { t.Error("a slot fired while the microphones were cut") }
+	e.OnDetect = func(int, string) { t.Error("a slot fired while the microphones were cut") }
 
 	e.Quiet(true)
 
