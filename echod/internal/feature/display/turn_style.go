@@ -43,7 +43,7 @@ var turnStyles = offered([]turnStyle{
 func offered(styles []turnStyle) []turnStyle {
 	out := styles[:0]
 	for _, t := range styles {
-		if (t.value != "rainbow" || hasRainbow) && (t.value != "luna" || hasRainbow) {
+		if (t.value != "rainbow" && t.value != "luna") || hasRainbow { // Luna's layout, like Rainbow, is the Show's
 			out = append(out, t)
 		}
 	}

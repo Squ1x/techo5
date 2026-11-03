@@ -31,7 +31,12 @@ func TestTimerStyleAndRingLabelsFollowTheScreenLanguage(t *testing.T) {
 		{"tr", []string{"Satır", "Halka", "Köşe", "Şerit", "Büyük"}, []string{"Eski telefon", "Zil"}, "Çan sesleri"},
 		{"en", []string{"Line", "Ring", "Corner", "Banner", "Big"}, []string{"Old phone", "Chime"}, "Chimes"},
 	}
+	luna := []string{}
+	if hasRainbow {
+		luna = append(luna, "Luna-Ring") // Luna's ring is a name, on the Show only
+	}
 	for _, c := range cases {
+		c.styles = append(c.styles, luna...)
 		if err := config.Set().Screen().Language(c.lang); err != nil {
 			t.Fatal(err)
 		}
@@ -55,7 +60,7 @@ func TestTimerStyleAndRingLabelsFollowTheScreenLanguage(t *testing.T) {
 		}
 	}
 	// What is saved and what Home Assistant offers does not change with the language.
-	if !reflect.DeepEqual(timerStyleOptions(), []string{"Line", "Ring", "Corner", "Banner", "Big"}) {
+	if !reflect.DeepEqual(timerStyleOptions(), append([]string{"Line", "Ring", "Corner", "Banner", "Big"}, luna...)) {
 		t.Errorf("timer style options changed: %v", timerStyleOptions())
 	}
 	if !reflect.DeepEqual(phone.RingSounds, []string{"Old phone", "Chime"}) {

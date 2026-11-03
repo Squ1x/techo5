@@ -23,7 +23,6 @@ import (
 // chooses.
 
 const (
-	skinLuna      = "luna"
 	skinNone      = ""
 	skinLCARS     = "lcars"
 	skinEInk      = "eink"
@@ -35,6 +34,7 @@ const (
 	skinPrairie   = "prairie"
 	skinPlain     = "bigplain"
 	skinEarthrise = "earthrise"
+	skinLuna      = "luna"
 )
 
 // skins are the choices, as the screen and Home Assistant name them, with what the config keeps.
@@ -57,7 +57,8 @@ var skins = []struct {
 }
 
 func init() {
-	// Like Rainbow, Luna's 960×480 layout is for Show/Panel, not round Spot.
+	// Luna is laid out for the Show, as Rainbow is: neither the round Spot nor a tablet offers it. It
+	// is the last choice of each list it is in.
 	if !hasRainbow {
 		skins = skins[:len(skins)-1]
 		clockStyles = clockStyles[:len(clockStyles)-1]

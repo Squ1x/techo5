@@ -708,6 +708,13 @@ var uiEnglish = map[string]string{
 	// The time zone picker (display/sheet_timezone.go, #354).
 	"ui_tz_follow_ha": "Follow Home Assistant",
 	"ui_tz_common":    "Common",
+
+	// The Luna conversation screen (turn_luna.go).
+	"luna_you_said":     "You: %s",
+	"luna_listening":    "I'm listening …",
+	"luna_tool_missing": "missing",
+	"luna_tool_error":   "error",
+	"luna_all_day":      "all day",
 }
 
 var uiTranslations = map[string]map[string]string{
@@ -1701,6 +1708,12 @@ var uiTranslations = map[string]map[string]string{
 		// The time zone picker (display/sheet_timezone.go, #354).
 		"ui_tz_follow_ha": "Suivre Home Assistant",
 		"ui_tz_common":    "Courants",
+
+		"luna_you_said":     "Vous : %s",
+		"luna_listening":    "J'écoute …",
+		"luna_tool_missing": "absent",
+		"luna_tool_error":   "erreur",
+		"luna_all_day":      "journée",
 	},
 	"gl": {
 		"drawer_recording":           "Escoitando",
@@ -2387,6 +2400,12 @@ var uiTranslations = map[string]map[string]string{
 		"ui_tz_follow_ha":                "Seguir a Home Assistant",
 		"ui_tz_common":                   "Habituais",
 		"wake_word_threshold_playing":    "Limiar da palabra de activación (soando)",
+
+		"luna_you_said":     "Ti: %s",
+		"luna_listening":    "Escoito …",
+		"luna_tool_missing": "falta",
+		"luna_tool_error":   "erro",
+		"luna_all_day":      "todo o día",
 	},
 	"it": {
 		"drawer_recording":           "In ascolto",
@@ -3077,6 +3096,12 @@ var uiTranslations = map[string]map[string]string{
 		// The time zone picker (display/sheet_timezone.go, #354).
 		"ui_tz_follow_ha": "Segui Home Assistant",
 		"ui_tz_common":    "Comuni",
+
+		"luna_you_said":     "Tu: %s",
+		"luna_listening":    "Ti ascolto …",
+		"luna_tool_missing": "manca",
+		"luna_tool_error":   "errore",
+		"luna_all_day":      "giornata",
 	},
 	"nl": {
 		// Audio output
@@ -3977,6 +4002,12 @@ var uiTranslations = map[string]map[string]string{
 		// The time zone picker (display/sheet_timezone.go, #354).
 		"ui_tz_follow_ha": "Home Assistantに従う",
 		"ui_tz_common":    "よく使う",
+
+		"luna_you_said":     "あなた: %s",
+		"luna_listening":    "聞いています …",
+		"luna_tool_missing": "なし",
+		"luna_tool_error":   "エラー",
+		"luna_all_day":      "終日",
 	},
 
 	// de is the German catalog. The English of every entry is above it, so a
@@ -5278,6 +5309,12 @@ var uiTranslations = map[string]map[string]string{
 		// The time zone picker (display/sheet_timezone.go, #354).
 		"ui_tz_follow_ha": "Home Assistant folgen",
 		"ui_tz_common":    "Häufige",
+
+		"luna_you_said":     "Du: %s",
+		"luna_listening":    "Ich höre …",
+		"luna_tool_missing": "fehlt",
+		"luna_tool_error":   "Fehler",
+		"luna_all_day":      "ganzt.",
 	},
 	"tr": {
 		"ui_listening_turn":          "Dinleniyor…",
@@ -5969,5 +6006,11 @@ var uiTranslations = map[string]map[string]string{
 		// The time zone picker (display/sheet_timezone.go, #354).
 		"ui_tz_follow_ha": "Home Assistant'ı izle",
 		"ui_tz_common":    "Yaygın",
+
+		"luna_you_said":     "Sen: %s",
+		"luna_listening":    "Dinliyorum …",
+		"luna_tool_missing": "yok",
+		"luna_tool_error":   "hata",
+		"luna_all_day":      "tüm gün",
 	},
 }

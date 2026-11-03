@@ -3,6 +3,7 @@
 package display
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"image/draw"
@@ -130,13 +131,13 @@ func (r *renderer) lunaTurn(s scene) {
 			right = 824
 		}
 		f := r.lunaFace(false, 22)
-		r.lunaMid(f, r.clipTo(f, "Du: "+s.heard, r.s(right-x)), x, 64, subdued)
+		r.lunaMid(f, r.clipTo(f, fmt.Sprintf(tr("luna_you_said"), s.heard), r.s(right-x)), x, 64, subdued)
 	}
 	bottom := r.lunaReply(s, follow, text)
 	if follow && !night {
 		r.lunaFollowFrame(s)
 		f := r.lunaFace(false, 22)
-		label := "Ich höre …"
+		label := tr("luna_listening")
 		y := min(408, bottom+32)
 		w := r.width(f, label) + r.s(58)
 		r.roundStroke(image.Rect(r.s(344), r.s(y-20), r.s(344)+w, r.s(y+20)), r.sf(20), r.sf(2), lunaMagenta)
@@ -167,30 +168,27 @@ func lunaLevel(s scene) float64 {
 func (r *renderer) lunaScope(s scene, c color.RGBA, night bool) {
 	if !night {
 		r.roundStroke(image.Rect(r.s(72), r.s(300), r.s(288), r.s(348)), 0, r.sf(1), lunaRules)
-		r.stroke(r.s(72), r.s(324), r.s(288), r.s(324), max(1, r.s(1)), faded(lunaRules, 153))
+		washOver(r.dst, image.Rect(r.s(72), r.s(324), r.s(288), r.s(324)+max(1, r.s(1))), faded(lunaRules, 153))
 		for _, x := range []int{126, 180, 234} {
 			r.stroke(r.s(x), r.s(319), r.s(x), r.s(329), max(1, r.s(1)), lunaRules)
 		}
 	}
 	amp := lunaLevel(s)
 	t := float64(s.now.UnixMilli()%12000) / 1000
-	var pts [55]image.Point
+	pts := make([][2]float64, 55)
 	for i := range pts {
 		u := float64(i) / 54
 		v := (math.Sin(2*math.Pi*2.2*u+t) + math.Sin(2*math.Pi*4.7*u+2*t)/2 + math.Sin(2*math.Pi*7.9*u+3*t)/3) / 1.6
-		pts[i] = image.Pt(r.s(72+i*4), r.s(324)-int(r.sf(20)*amp*math.Pow(math.Sin(math.Pi*u), 1.5)*v))
+		pts[i] = [2]float64{float64(72 + i*4), 324 - 20*amp*math.Pow(math.Sin(math.Pi*u), 1.5)*v}
 	}
 	for _, pass := range []struct {
-		w int
+		w float64
 		a uint8
 	}{{10, 26}, {6, 64}, {2, 255}} {
 		if night && pass.a != 255 {
 			continue
 		}
-		for i := 1; i < len(pts); i++ {
-			a, b := pts[i-1], pts[i]
-			r.stroke(a.X, a.Y, b.X, b.Y, max(1, r.s(pass.w)), faded(c, pass.a))
-		}
+		r.lunaTrace(pts, pass.w, faded(c, pass.a))
 	}
 	if s.phase == "thinking" {
 		x := 72 + int(216*float64(s.now.UnixMilli()%1200)/1200)
@@ -216,12 +214,16 @@ func (r *renderer) lunaEyes(height, scale, tilt int, c color.RGBA, night bool) *
 		return img
 	}
 	dst := r.dst
-	box := image.Rect(r.s(40), r.s(108), r.s(320), r.s(272))
+	// The layer holds every eye's outer halo, tilted and raised or grown by 8 %, so no shape box leaves it.
+	box := image.Rect(r.s(40), r.s(104), r.s(320), r.s(276))
 	r.dst = image.NewRGBA(box)
 	for i, cx := range []int{124, 236} {
 		cy := 190
 		if tilt != 0 && i == 1 {
 			cy -= 6
+		}
+		if height == 18 {
+			cy += 6 // squinting lids sit a little lower, as in the reference
 		}
 		rx, ry := 32*float64(scale)/100, float64(height)*float64(scale)/100
 		if height == 18 {
@@ -232,7 +234,7 @@ func (r *renderer) lunaEyes(height, scale, tilt int, c color.RGBA, night bool) *
 			if core {
 				a, b, y = rx/2, ry/2, y-ry*0.12
 			}
-			box := image.Rect(r.s(cx-70), r.s(cy-80), r.s(cx+70), r.s(cy+80))
+			box := image.Rect(r.s(cx-72), r.s(cy-72), r.s(cx+72), r.s(cy+72)).Intersect(r.dst.Bounds())
 			r.fillShape(box, col, func(z *vector.Rasterizer, w, h float32) {
 				angle := float64(tilt) * math.Pi / 180
 				for j := 0; j < 72; j++ {
@@ -312,7 +314,7 @@ func (r *renderer) lunaReply(s scene, follow bool, c color.RGBA) int {
 		top += pitch
 	}
 	pages := (len(lines) + fit - 1) / fit
-	if pages > 1 {
+	if pages > 1 && !follow { // a follow-up's countdown runs where the dots would be
 		// replyPage is the sole paging authority, including its character-weighted boundary rule.
 		current := 0
 		for i := 0; i < len(lines); i += fit {
@@ -345,15 +347,15 @@ func (r *renderer) lunaFollowFrame(s scene) {
 	alpha := uint8(255 * (0.65 + 0.25*math.Sin(float64(s.now.UnixMilli()%1600)*2*math.Pi/1600)))
 	c := faded(lunaMagenta, alpha)
 	// Four thin strips and four local corner arcs; never scan the frame's interior.
-	for _, edge := range [][4]int{{24, 8, 936, 8}, {24, 472, 936, 472}, {8, 24, 8, 456}, {952, 24, 952, 456}} {
-		r.stroke(r.s(edge[0]), r.s(edge[1]), r.s(edge[2]), r.s(edge[3]), max(1, r.s(3)), c)
+	for _, edge := range []image.Rectangle{image.Rect(24, 7, 936, 10), image.Rect(24, 470, 936, 473), image.Rect(7, 24, 10, 456), image.Rect(950, 24, 953, 456)} {
+		washOver(r.dst, image.Rect(r.s(edge.Min.X), r.s(edge.Min.Y), r.s(edge.Max.X), r.s(edge.Max.Y)), c)
 	}
 	for _, corner := range [][3]int{{24, 24, 270}, {936, 24, 0}, {936, 456, 90}, {24, 456, 180}} {
-		r.arcBand(r.sf(corner[0]), r.sf(corner[1]), r.sf(16), r.sf(3), float64(corner[2]), float64(corner[2]+90), c)
+		r.arcBand(r.sf(corner[0]), r.sf(corner[1]), r.sf(31)/2, r.sf(3), float64(corner[2]), float64(corner[2]+90), c)
 	}
 	x := 24 + int(912*lunaFollowFraction(s))
 	if x > 24 {
-		r.stroke(r.s(24), r.s(456), r.s(x), r.s(456), max(1, r.s(3)), lunaMagenta)
+		washOver(r.dst, image.Rect(r.s(24), r.s(455), r.s(x), r.s(458)), lunaMagenta)
 	}
 }
 
@@ -367,9 +369,9 @@ func (r *renderer) lunaTools(s scene) {
 		case "ok":
 			status, col = "ok", lunaCyan
 		case "missing":
-			status, col = "fehlt", lunaMagenta
+			status, col = tr("luna_tool_missing"), lunaMagenta
 		case "error":
-			status, col = "Fehler", lunaMagenta
+			status, col = tr("luna_tool_error"), lunaMagenta
 		default:
 			continue
 		}

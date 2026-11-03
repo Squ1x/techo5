@@ -297,14 +297,18 @@ type scene struct {
 // renderer draws scenes onto one canvas. Faces are made once: parsing a font is cheap, but
 // building a face at each size is not something to do per frame.
 type renderer struct {
-	lunaTurnCache    lunaTurnPaint
-	lunaTurnDrawn    string // last drawn turn phase, under zmu
-	luna             lunaIdlePaint
-	lunaStopAt       image.Rectangle // last drawn Luna timer target, under zmu
+	nightBuf     *image.RGBA // the night layer kept between frames (nightLayerFor)
+	paint                    // the canvas, its size, and the settings screen's tap zones
+	climateParts             // the thermostat sheet's, where it was last drawn (climate_sheet.go)
+	// luna is the Luna clock's kept frame, faces and animator (luna_idle.go); lunaTurnCache the Luna
+	// conversation's eyes and glitch timing (turn_luna.go).
+	luna          lunaIdlePaint
+	lunaTurnCache lunaTurnPaint
+	// The Luna screens' touch targets as last drawn, under zmu: the conversation's phase, and the
+	// ringing timer's Stop button with whether that page is up (timer_luna.go).
+	lunaTurnDrawn    string
+	lunaStopAt       image.Rectangle
 	lunaRingingDrawn bool
-	nightBuf         *image.RGBA // the night layer kept between frames (nightLayerFor)
-	paint                        // the canvas, its size, and the settings screen's tap zones
-	climateParts                 // the thermostat sheet's, where it was last drawn (climate_sheet.go)
 	// glow is the Glow style's images, kept between frames (glow.go).
 	glow glowBuffers
 	// nixie is the Nixie style's tubes, kept between frames (nixie.go).
@@ -535,11 +539,13 @@ func (r *renderer) draw(s scene) {
 	if !turnShown(s) || s.eq.style != "luna" {
 		r.lunaTurnCache.phase = ""
 	}
-	if partial, finish := r.lunaIdleStart(s); partial {
+	// Luna's idle clock: between whole seconds only the dog and the eyes change, drawn over the frame
+	// kept from the second's first draw (luna_idle.go).
+	partial, finish := r.lunaIdleStart(s)
+	if partial {
 		return
-	} else {
-		defer finish() // after the static frame's header/overlays, before the sprite
 	}
+	defer finish() // runs last: keeps the finished frame, then draws the dog and the eyes over it
 	r.zmu.Lock()
 	r.lunaStopAt, r.lunaRingingDrawn = image.Rectangle{}, false
 	r.lunaTurnDrawn = ""

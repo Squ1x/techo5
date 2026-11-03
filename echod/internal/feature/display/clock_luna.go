@@ -63,9 +63,9 @@ func (r *renderer) lunaWeather(s scene) {
 	r.lunaMid(face, r.fit(face, label, r.s(430)), 176, 66, lunaText)
 	if len(s.style.days) > 0 {
 		day := s.style.days[0]
-		x := 176 + r.width(face, label)*960/r.w + 16
-		if x < 600 {
-			r.lunaMid(r.lunaFace(false, 20), fmt.Sprintf("↑%.0f ↓%.0f", day.High, day.Low), x, 66, lunaDim)
+		x := 176 + r.width(face, label)*960/r.w + 14
+		if span := fmt.Sprintf("↑ %.0f°  ↓ %.0f°", day.High, day.Low); x+r.width(face, span)*960/r.w < 800 {
+			r.lunaMid(face, span, x, 66, lunaDim) // clear of the timer ring's scale
 		}
 	}
 }
@@ -101,10 +101,7 @@ func (r *renderer) lunaEvents(s scene) {
 		y := 160 + group*120 + row*40
 		label := clockText(e.Start)
 		if e.AllDay {
-			label = tr("all_day")
-			if screenLang() == "de" {
-				label = "ganzt."
-			}
+			label = tr("luna_all_day") // short enough for the time column
 		}
 		timeFace := r.lunaFace(false, 22)
 		r.lunaMid(timeFace, r.fit(timeFace, label, r.s(64)), 600, y, lunaDim)

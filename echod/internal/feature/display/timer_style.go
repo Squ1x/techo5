@@ -17,12 +17,12 @@ import (
 // whatever the style.
 
 const (
-	timerLuna   = "luna"
 	timerLine   = ""
 	timerRing   = "ring"
 	timerCorner = "corner"
 	timerBanner = "banner"
 	timerBig    = "big"
+	timerLuna   = "luna"
 )
 
 // timerStyles are the choices, as the screen and Home Assistant name them, with what the config keeps.

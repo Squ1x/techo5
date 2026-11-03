@@ -24,7 +24,6 @@ import (
 // look. A swipe left or right across the clock turns to the next style or the one before.
 
 const (
-	styleLuna      = "luna"
 	styleClassic   = ""
 	styleBig       = "big"
 	styleFlip      = "flip"
@@ -40,6 +39,7 @@ const (
 	styleNixie     = "nixie"
 	styleStack     = "stack"
 	styleOverlap   = "overlap"
+	styleLuna      = "luna"
 )
 
 // clockStyles are the choices, as the screen and Home Assistant name them, with what the config keeps.

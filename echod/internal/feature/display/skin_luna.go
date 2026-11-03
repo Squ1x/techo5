@@ -9,6 +9,7 @@ import (
 	"image/color"
 	"image/draw"
 	"image/png"
+	"math"
 	"sync"
 
 	xdraw "golang.org/x/image/draw"
@@ -90,7 +91,7 @@ func (r *renderer) lunaBackdrop(s scene) {
 		return
 	}
 	r.lunaSkyline(false)
-	r.stroke(r.s(56), r.s(430), r.s(896), r.s(430), max(1, r.s(1)), faded(lunaCyan, 102))
+	washOver(r.dst, image.Rect(r.s(56), r.s(430), r.s(896), r.s(430)+max(1, r.s(1))), faded(lunaCyan, 102))
 	for x := 56; x <= 896; x += 64 {
 		r.stroke(r.s(x), r.s(424), r.s(x), r.s(436), max(1, r.s(1)), lunaRules)
 	}
@@ -152,20 +153,52 @@ func (r *renderer) lunaOval(cx, cy, rx, ry int, c color.RGBA) {
 	})
 }
 
-// Upper-lid arcs (not smiles); blinking briefly closes each lid to a line.
+// Upper-lid arcs (not smiles): 200° to 340° of a 24 × 18 ellipse, as the reference draws them. A
+// blink closes each lid to a line at the arc's ends.
 func (r *renderer) lunaMiniEyes(closed bool) {
-	for _, cx := range []int{70, 106} {
-		if closed {
-			r.stroke(r.s(cx-12), r.s(66), r.s(cx+12), r.s(66), max(1, r.s(2)), faded(lunaCyan, 153))
-			continue
+	for _, cx := range []float64{70, 106} {
+		var lid [][2]float64
+		for i := 0; i <= 14; i++ {
+			a := (200 + 10*float64(i)) * math.Pi / 180
+			y := 68 + 9*math.Sin(a)
+			if closed {
+				y = 65
+			}
+			lid = append(lid, [2]float64{cx + 12*math.Cos(a), y})
 		}
-		// Elliptical upper arc, in logical pixels, approximated by short segments.
-		for i := 0; i < 16; i++ {
-			x0 := -12 + float64(i)*1.5
-			x1 := x0 + 1.5
-			y0 := 66 - 7*(1-x0*x0/144)
-			y1 := 66 - 7*(1-x1*x1/144)
-			r.stroke(r.s(cx)+int(x0*r.sk()), int(y0*r.sk()), r.s(cx)+int(x1*r.sk()), int(y1*r.sk()), max(1, r.s(2)), faded(lunaCyan, 153))
-		}
+		r.lunaTrace(lid, 3, faded(lunaCyan, 153))
 	}
+}
+
+// lunaTrace strokes a polyline in logical pixels as one antialiased shape, so a see-through color
+// covers each pixel once, where stroke's overlapping dabs would add up to nearly solid.
+func (r *renderer) lunaTrace(pts [][2]float64, width float64, c color.RGBA) {
+	if len(pts) < 2 {
+		return
+	}
+	k, half := r.sk(), width*r.sk()/2
+	box := image.Rectangle{}
+	for _, p := range pts {
+		box = box.Union(image.Rect(int(p[0]*k-half)-1, int(p[1]*k-half)-1, int(p[0]*k+half)+2, int(p[1]*k+half)+2))
+	}
+	box = box.Intersect(r.dst.Rect)
+	// Each point moves half the width either way along the line's normal there.
+	edge := func(i int, side float64) (float32, float32) {
+		p, q := pts[max(0, i-1)], pts[min(len(pts)-1, i+1)]
+		dx, dy := q[0]-p[0], q[1]-p[1]
+		l := math.Hypot(dx, dy)
+		if l == 0 {
+			l = 1
+		}
+		return float32(pts[i][0]*k-side*half*dy/l) - float32(box.Min.X), float32(pts[i][1]*k+side*half*dx/l) - float32(box.Min.Y)
+	}
+	r.fillShape(box, c, func(z *vector.Rasterizer, _, _ float32) {
+		z.MoveTo(edge(0, 1))
+		for i := 1; i < len(pts); i++ {
+			z.LineTo(edge(i, 1))
+		}
+		for i := len(pts) - 1; i >= 0; i-- {
+			z.LineTo(edge(i, -1))
+		}
+	})
 }
